@@ -1,4 +1,5 @@
 const SK = 'notasapp_v3';
+const CAL_SK = 'notasapp_calendar_v1';
 const TAGS = ['General', 'Exactas', 'Ciencias', 'Tecnología', 'Humanidades', 'Arte'];
 const TAG_COLORS = { Exactas: '', Ciencias: 'green', Tecnología: 'blue', Humanidades: 'purple', Arte: 'red', General: '' };
 
@@ -45,8 +46,26 @@ const SAMPLE = [
   { id: 's7',  emoji: '🎵', title: 'Teoría Musical',           content: 'Escala mayor: T T S T T T S\nDo mayor: Do Re Mi Fa Sol La Si Do\n\nAcordes: tríada = fundamental + tercera + quinta.',                                                                              tag: 'Arte',        starred: false, deleted: false, parentId: null, color: 'pink',   createdAt: new Date(Date.now() - 14 * 86400000).toISOString(), updatedAt: new Date(Date.now() - 14 * 86400000).toISOString() },
 ];
 
+const CAL_THEMES = {
+  normal:  { label: 'Normal',   icon: '&#128197;', note: 'Planificación tranquila', bg: 'linear-gradient(135deg, #fffaf2, #f0f7ff)', accent: '#3b82f6' },
+  navidad: { label: 'Navidad',  icon: '&#127876;', note: 'Fechas con brillo y entregas finales', bg: 'linear-gradient(135deg, #fff7f5, #f4fff7)', accent: '#d43f3a' },
+  verano:  { label: 'Verano',   icon: '&#127774;', note: 'Vacaciones, proyectos y días largos', bg: 'linear-gradient(135deg, #fff9df, #e9fbff)', accent: '#f59e0b' },
+  examenes:{ label: 'Exámenes', icon: '&#128221;', note: 'Modo foco para parciales y repasos', bg: 'linear-gradient(135deg, #f7f3ff, #fff7ed)', accent: '#8b5cf6' },
+};
+
+const IMPORTANT_DATES = [
+  { date: '01-01', title: 'Año nuevo', color: 'blue', theme: 'normal' },
+  { date: '06-21', title: 'Inicio verano', color: 'yellow', theme: 'verano' },
+  { date: '09-01', title: 'Vuelta a clase', color: 'green', theme: 'examenes' },
+  { date: '12-24', title: 'Nochebuena', color: 'red', theme: 'navidad' },
+  { date: '12-25', title: 'Navidad', color: 'red', theme: 'navidad' },
+  { date: '12-31', title: 'Fin de ano', color: 'teal', theme: 'navidad' },
+];
+
 function load()       { try { return JSON.parse(localStorage.getItem(SK)) || null; } catch { return null; } }
 function save(d)      { localStorage.setItem(SK, JSON.stringify(d)); }
+function loadCalendar() { try { return JSON.parse(localStorage.getItem(CAL_SK)) || []; } catch { return []; } }
+function saveCalendar(d) { localStorage.setItem(CAL_SK, JSON.stringify(d)); }
 function initData()   { if (!load()) save(SAMPLE); }
 function getNotes()   { return load() || []; }
 function getActive()  { return getNotes().filter(n => !n.deleted); }
@@ -91,7 +110,7 @@ function restoreNote(id) { updateNote(id, { deleted: false }); }
 function permDelete(id)  { save(getNotes().filter(n => n.id !== id)); }
 function toggleStar(id)  { const n = getById(id); if (n) updateNote(id, { starred: !n.starred }); }
 
-let S = { view: 'home', noteId: null, searchQ: '', sortBy: 'updatedAt', sortDir: 'desc', filterTag: null, expanded: new Set() };
+let S = { view: 'home', noteId: null, searchQ: '', sortBy: 'updatedAt', sortDir: 'desc', filterTag: null, expanded: new Set(), calendarTheme: 'normal', calMonth: new Date().getMonth(), calYear: new Date().getFullYear() };
 let sidebarOpen = false;
 
 function toggleSidebar() {
@@ -166,7 +185,7 @@ function currentUser() { return localStorage.getItem('notasapp_user') || 'admin'
 function renderAll() {
   renderSidebar();
   renderTopbar();
-  const views = { home: renderHome, note: renderNoteEditor, search: renderSearch, trash: renderTrash, templates: renderTemplates, updates: renderUpdates };
+  const views = { home: renderHome, note: renderNoteEditor, search: renderSearch, trash: renderTrash, templates: renderTemplates, calendar: renderCalendar, updates: renderUpdates };
   (views[S.view] || renderHome)();
   document.querySelectorAll('.nav-item[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === S.view));
 }
@@ -197,7 +216,7 @@ function renderTreeLevel(notes, depth) {
 }
 
 function renderTopbar() {
-  const labels = { home: 'Inicio', note: 'Página', search: 'Buscar', trash: 'Papelera', templates: 'Plantillas', updates: 'Actualizaciones' };
+  const labels = { home: 'Inicio', note: 'Página', search: 'Buscar', trash: 'Papelera', templates: 'Plantillas', calendar: 'Calendario', updates: 'Actualizaciones' };
   let crumbs = `<span class="bc-item" onclick="nav('home')">NotasApp</span><span class="bc-sep">›</span>`;
 
   if (S.view === 'note' && S.noteId) {
@@ -278,6 +297,10 @@ function renderHome() {
       <button class="q-btn" onclick="nav('templates')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         Plantillas
+      </button>
+      <button class="q-btn" onclick="nav('calendar')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Calendario
       </button>
     </div>
 
@@ -543,6 +566,150 @@ function snip(c, q) {
   if (i < 0) return c.slice(0, 80);
   const s = Math.max(0, i - 30);
   return (s > 0 ? '...' : '') + c.slice(s, i + 60) + (i + 60 < c.length ? '...' : '');
+}
+
+function isoDate(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function dateKey(date) {
+  return String(date || '').slice(5, 10);
+}
+
+function calendarEventsFor(date) {
+  const imp = IMPORTANT_DATES
+    .filter(e => e.date === dateKey(date))
+    .map(e => ({ ...e, type: 'important' }));
+  const rem = loadCalendar()
+    .filter(e => e.date === date)
+    .map(e => ({ ...e, type: 'reminder' }));
+  return [...imp, ...rem];
+}
+
+function changeCalMonth(step) {
+  const next = new Date(S.calYear, S.calMonth + step, 1);
+  S.calYear = next.getFullYear();
+  S.calMonth = next.getMonth();
+  renderCalendar();
+}
+
+function setCalTheme(theme) {
+  S.calendarTheme = theme;
+  renderCalendar();
+}
+
+function addReminder() {
+  const title = document.getElementById('rem-title')?.value.trim();
+  const date = document.getElementById('rem-date')?.value;
+  const color = document.getElementById('rem-color')?.value || 'blue';
+  if (!title || !date) return;
+  const arr = loadCalendar();
+  arr.push({ id: 'r' + Date.now(), title, date, color, theme: S.calendarTheme });
+  saveCalendar(arr);
+  renderCalendar();
+}
+
+function deleteReminder(id) {
+  saveCalendar(loadCalendar().filter(r => r.id !== id));
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const theme = CAL_THEMES[S.calendarTheme] || CAL_THEMES.normal;
+  const monthName = new Date(S.calYear, S.calMonth, 1).toLocaleDateString('es', { month: 'long', year: 'numeric' });
+  const firstDay = (new Date(S.calYear, S.calMonth, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(S.calYear, S.calMonth + 1, 0).getDate();
+  const today = new Date();
+  const todayIso = isoDate(today.getFullYear(), today.getMonth(), today.getDate());
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push({ empty: true });
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = isoDate(S.calYear, S.calMonth, day);
+    cells.push({ day, date, events: calendarEventsFor(date), today: date === todayIso });
+  }
+
+  const reminders = [...loadCalendar()].sort((a, b) => a.date.localeCompare(b.date));
+  const visibleImportant = IMPORTANT_DATES.filter(e => !S.calendarTheme || e.theme === S.calendarTheme || S.calendarTheme === 'normal');
+
+  document.getElementById('view-root').innerHTML = `
+    <div class="calendar-view cal-theme-${S.calendarTheme}" style="--cal-accent:${theme.accent};--cal-bg:${theme.bg}">
+      <div class="calendar-hero">
+        <div>
+          <div class="hero-date">${theme.icon} ${theme.note}</div>
+          <h2>Calendario <span>${theme.label}</span></h2>
+          <p>Recordatorios, fechas importantes y cambios de ambiente según la temporada.</p>
+        </div>
+        <div class="calendar-theme-tabs">
+          ${Object.entries(CAL_THEMES).map(([k, v]) => `
+            <button class="cal-tab ${S.calendarTheme === k ? 'active' : ''}" onclick="setCalTheme('${k}')">
+              <span>${v.icon}</span>${v.label}
+            </button>`).join('')}
+        </div>
+      </div>
+
+      <div class="calendar-layout">
+        <section class="calendar-panel">
+          <div class="cal-toolbar">
+            <button class="icon-btn" onclick="changeCalMonth(-1)" title="Mes anterior">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <strong>${esc(monthName)}</strong>
+            <button class="icon-btn" onclick="changeCalMonth(1)" title="Mes siguiente">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          <div class="cal-weekdays">${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `<span>${d}</span>`).join('')}</div>
+          <div class="cal-grid">
+            ${cells.map(c => c.empty ? '<div class="cal-day empty"></div>' : `
+              <div class="cal-day ${c.today ? 'today' : ''}">
+                <div class="cal-day-num">${c.day}</div>
+                <div class="cal-events">
+                  ${c.events.slice(0, 3).map(e => `<span class="cal-event ${e.color || 'blue'}">${esc(e.title)}</span>`).join('')}
+                  ${c.events.length > 3 ? `<span class="cal-more">+${c.events.length - 3}</span>` : ''}
+                </div>
+              </div>`).join('')}
+          </div>
+        </section>
+
+        <aside class="calendar-side">
+          <div class="reminder-box">
+            <div class="sec-ttl">Recordatorio</div>
+            <input id="rem-title" class="rem-input" placeholder="Que no se te pase..." />
+            <input id="rem-date" class="rem-input" type="date" value="${todayIso}" />
+            <select id="rem-color" class="rem-input">
+              <option value="blue">Azul</option>
+              <option value="green">Verde</option>
+              <option value="yellow">Amarillo</option>
+              <option value="red">Rojo</option>
+              <option value="purple">Morado</option>
+              <option value="teal">Turquesa</option>
+            </select>
+            <button class="q-btn primary rem-add" onclick="addReminder()">Añadir recordatorio</button>
+          </div>
+
+          <div class="reminder-box">
+            <div class="sec-ttl">Fechas importantes con colores</div>
+            <div class="important-list">
+              ${visibleImportant.map(e => `<div class="important-row"><span class="color-dot ${e.color}"></span><strong>${esc(e.date)}</strong><span>${esc(e.title)}</span></div>`).join('')}
+            </div>
+          </div>
+
+          <div class="reminder-box">
+            <div class="sec-ttl">Mis recordatorios</div>
+            <div class="reminder-list">
+              ${reminders.length ? reminders.map(r => `
+                <div class="reminder-row">
+                  <span class="color-dot ${r.color}"></span>
+                  <div><strong>${esc(r.title)}</strong><small>${new Date(r.date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}</small></div>
+                  <button class="icon-btn" onclick="deleteReminder('${r.id}')" title="Borrar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                  </button>
+                </div>`).join('') : '<div class="empty-mini">Todavía no hay recordatorios.</div>'}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>`;
 }
 
 
